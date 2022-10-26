@@ -71,16 +71,29 @@ public:
 		int32_t pipelineIndex = 0;					// Current image filtering compute pipeline index
 	} compute;
 
+	struct ComputePipelines
+	{
+		VkPipeline histogram;
+		VkPipeline cdfScan;
+		VkPipeline applyhisto;
+	} computePipelines;
+
 	vks::Buffer vertexBuffer;
 	vks::Buffer indexBuffer;
 	uint32_t indexCount;
 
 	vks::Buffer uniformBufferVS;
+	vks::Buffer histogramBufferVS;
 
 	struct {
 		glm::mat4 projection;
 		glm::mat4 modelView;
 	} uboVS;
+
+	struct HistBuffer{
+		unsigned int histoBin[256];
+		float cdf[256];
+	} histogram_buffer;
 
 	int vertexBufferSize;
 
@@ -92,7 +105,7 @@ public:
 		camera.type = Camera::CameraType::lookat;
 		camera.setPosition(glm::vec3(0.0f, 0.0f, -2.0f));
 		camera.setRotation(glm::vec3(0.0f));
-		camera.setPerspective(60.0f, (float)width * 0.5f / (float)height, 1.0f, 256.0f);
+		camera.setPerspective(60.0f, (float)width * 0.5f / (float)height, 0.001f, 256.0f);
 	}
 
 	~VulkanExample()
@@ -108,6 +121,13 @@ public:
 		{
 			vkDestroyPipeline(device, pipeline, nullptr);
 		}
+
+		{
+			vkDestroyPipeline(device, computePipelines.histogram, nullptr);
+			vkDestroyPipeline(device, computePipelines.cdfScan, nullptr);
+			vkDestroyPipeline(device, computePipelines.applyhisto, nullptr);
+		}
+
 		vkDestroyPipelineLayout(device, compute.pipelineLayout, nullptr);
 		vkDestroyDescriptorSetLayout(device, compute.descriptorSetLayout, nullptr);
 		vkDestroySemaphore(device, compute.semaphore, nullptr);
@@ -314,10 +334,24 @@ public:
 		vkCmdBindDescriptorSets(compute.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, compute.pipelineLayout, 0, 1, &compute.descriptorSet, 0, 0);
 		//groupCountX is the number of local workgroups to dispatch in the X dimension.
 		//groupCountY is the number of local workgroups to dispatch in the Y dimension.
-		//groupCountZ is the number of local workgroups to dispatch in the Z dimension.
-		vkCmdDispatch(compute.commandBuffer, (textureComputeTarget.width + 15)/ 16, (textureComputeTarget.height + 15) / 16, 1);
+		//groupCountZ is the number of local workgroups to dispatch in the Z dimension. 
+		//vkCmdDispatch(compute.commandBuffer, ((textureComputeTarget.width - 1) / 16) + 1, ((textureComputeTarget.height - 1) / 16) + 1, 1);
+
+
+		
+		vkCmdBindPipeline(compute.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelines.histogram);
+		vkCmdDispatch(compute.commandBuffer, ((textureComputeTarget.width - 1) / 16) + 1, ((textureComputeTarget.height - 1) / 16) + 1, 1);
+
+		vkCmdBindPipeline(compute.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelines.cdfScan);
+		vkCmdDispatch(compute.commandBuffer, ((textureComputeTarget.width - 1) / 16) + 1, ((textureComputeTarget.height - 1) / 16) + 1, 1);
+
+		vkCmdBindPipeline(compute.commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, computePipelines.applyhisto);
+		vkCmdDispatch(compute.commandBuffer, ((textureComputeTarget.width - 1) / 16) + 1, ((textureComputeTarget.height - 1) / 16) + 1, 1);
 
 		vkEndCommandBuffer(compute.commandBuffer);
+
+
+
 	}
 
 	// Setup vertices for a single uv-mapped quad
@@ -568,6 +602,25 @@ public:
 			compute.pipelines.push_back(pipeline);
 		}
 
+		{
+			std::string fileName = getShadersPath() + "computeshader/" + "histogram" + ".comp.spv";
+			computePipelineCreateInfo.stage = loadShader(fileName, VK_SHADER_STAGE_COMPUTE_BIT);
+			VkPipeline pipeline;
+			VK_CHECK_RESULT(vkCreateComputePipelines(device, pipelineCache, 1, &computePipelineCreateInfo, nullptr, &computePipelines.histogram));
+		}
+		{
+			std::string fileName = getShadersPath() + "computeshader/" + "cdfScan" + ".comp.spv";
+			computePipelineCreateInfo.stage = loadShader(fileName, VK_SHADER_STAGE_COMPUTE_BIT);
+			VkPipeline pipeline;
+			VK_CHECK_RESULT(vkCreateComputePipelines(device, pipelineCache, 1, &computePipelineCreateInfo, nullptr, &computePipelines.cdfScan));
+		}
+		{
+			std::string fileName = getShadersPath() + "computeshader/" + "applyhisto" + ".comp.spv";
+			computePipelineCreateInfo.stage = loadShader(fileName, VK_SHADER_STAGE_COMPUTE_BIT);
+			VkPipeline pipeline;
+			VK_CHECK_RESULT(vkCreateComputePipelines(device, pipelineCache, 1, &computePipelineCreateInfo, nullptr, &computePipelines.applyhisto));
+		}
+
 		// Separate command pool as queue family for compute may be different than graphics
 		VkCommandPoolCreateInfo cmdPoolInfo = {};
 		cmdPoolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -604,6 +657,16 @@ public:
 
 		// Map persistent
 		VK_CHECK_RESULT(uniformBufferVS.map());
+		
+		// 
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(
+			VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT,
+			&histogramBufferVS,
+			sizeof(histogram_buffer)));
+
+		// Map persistent
+		VK_CHECK_RESULT(histogramBufferVS.map());
 
 		updateUniformBuffers();
 	}

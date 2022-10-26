@@ -1,0 +1,37 @@
+/* Start Header *****************************************************************/ 
+
+/*! \file applyhisto.comp
+
+\author Lim Guan Hui, l.guanhui, 2000552 | 390009020 
+
+\par email: l.guanhui\@digipen.edu
+
+\date October 26, 2022 
+
+\brief Copyright (C) 2022 DigiPen Institute of Technology. 
+
+Reproduction or disclosure of this file or its contents without the prior written consent of DigiPen Institute of Technology is prohibited. */ 
+
+/* End Header *******************************************************************/ 
+#version 450
+
+layout (local_size_x = 16, local_size_y = 16) in;
+layout (binding = 0, rgba8) uniform readonly image2D inputImage;
+layout (binding = 1, rgba8) uniform image2D resultImage;
+
+void main()
+{
+	const int width  = int(gl_WorkGroupSize.x * gl_NumWorkGroups.x);
+    const int height = int(gl_WorkGroupSize.y * gl_NumWorkGroups.y);
+
+    ivec2 global_position = ivec2(gl_GlobalInvocationID.x,gl_GlobalInvocationID.y);
+    ivec2 local_position = ivec2(gl_LocalInvocationID.x,gl_LocalInvocationID.y);
+    ivec2 sm_position = ivec2(local_position.x + 1,local_position.y + 1);
+
+
+	vec3 pixel = imageLoad(resultImage, global_position).rgb;
+	pixel.z = pixel.y;
+	
+	vec4 final_output = vec4(pixel, 1.0);  
+	imageStore(resultImage, global_position, final_output);
+}

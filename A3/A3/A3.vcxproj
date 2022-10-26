@@ -120,10 +120,12 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>$(SolutionDir)VulkanTest\ktx\other_include;$(SolutionDir)VulkanTest\ktx\include;$(SolutionDir)VulkanTest\imgui;$(VK_SDK_PATH)\Include;$(SolutionDir)glfw-3.3.8.bin.WIN64\include;$(SolutionDir)glm\glm-master;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(SolutionDir)glfw-3.3.8.bin.WIN64\lib-vc2019;$(VK_SDK_PATH)\Lib;$(SolutionDir)VulcanTest\ktx\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
